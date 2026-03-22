@@ -2,7 +2,7 @@ VERSION_MAJOR="17"
 VERSION_MINOR="1"
 VERSION_SUFFIX="dev0"
 
-HASSOS_NAME="Home Assistant OS"
-HASSOS_ID="haos"
+HASSOS_NAME="Power Pilot OS"
+HASSOS_ID="ppos"
 
 DEPLOYMENT="development"
