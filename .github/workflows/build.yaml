@@ -358,7 +358,7 @@ jobs:
           echo "|:-|:-|" >> $GITHUB_STEP_SUMMARY
           supervisor_version=$(jq -r ".supervisor" output/build/hassio-*/version.json)
           landingpage_version=$(curl -fsSL https://api.github.com/repos/home-assistant/landingpage/releases/latest | jq -r '.tag_name')
-          echo "| supervisor | [${supervisor_version}](https://github.com/home-assistant/supervisor/releases/tag/${supervisor_version}) |" >> $GITHUB_STEP_SUMMARY
+          echo "| supervisor | [${supervisor_version}](https://github.com/PowerLabs-be/power-pilot-supervisor/releases/tag/${supervisor_version}) |" >> $GITHUB_STEP_SUMMARY
           echo "| landingpage | [${landingpage_version}](https://github.com/home-assistant/landingpage/releases/tag/${landingpage_version}) |" >> $GITHUB_STEP_SUMMARY
           for plugin in dns audio cli multicast observer; do
             version=$(jq -r ".${plugin}" output/build/hassio-*/version.json)
@@ -471,14 +471,14 @@ jobs:
         persist-credentials: false
 
     - name: Initialize git
-      uses: home-assistant/actions/helpers/git-init@master
+      uses: PowerLabs-be/power-pilot-actions/helpers/git-init@master
       with:
         name: ${{ secrets.GIT_NAME }}
         email: ${{ secrets.GIT_EMAIL }}
         token: ${{ secrets.GIT_TOKEN }}
 
     - name: Bump Home Assistant OS ${{ needs.prepare.outputs.channel }} channel version
-      uses: home-assistant/actions/helpers/version-push@master
+      uses: PowerLabs-be/power-pilot-actions/helpers/version-push@master
       with:
         key: "hassos[]"
         key-description: "Home Assistant OS"
@@ -487,7 +487,7 @@ jobs:
 
     - name: Bump Home Assistant OS beta channel version on stable release
       if: ${{ needs.prepare.outputs.channel == 'stable' }}
-      uses: home-assistant/actions/helpers/version-push@master
+      uses: PowerLabs-be/power-pilot-actions/helpers/version-push@master
       with:
         key: "hassos[]"
         key-description: "Home Assistant OS"
