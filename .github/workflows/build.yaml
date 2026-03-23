@@ -297,6 +297,9 @@ jobs:
           path: /mnt/cache/cc
           key: haos-cc-${{ matrix.board.id }}
 
+      - name: Authenticate to GitHub Container Registry (enforced)
+        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+
       - name: Generate build config
         uses: "./.github/actions/haos-builder-command"
         with:
