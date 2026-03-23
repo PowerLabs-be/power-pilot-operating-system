@@ -178,6 +178,12 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+        
+      - name: Normalize GHCR namespace (lowercase)
+        id: ghcr
+        shell: bash
+        run: echo "owner_lc=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
+
       - name: Log in to the GitHub container registry
         uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3.6.0
         with:
@@ -190,9 +196,9 @@ jobs:
         with:
           context: .
           file: Dockerfile
-          tags: ghcr.io/${{ github.repository_owner }}/haos-builder
-          cache-from: ghcr.io/${{ github.repository_owner }}/haos-builder:cache-${{ steps.version.outputs.version_main }}
-          cache-to: ghcr.io/${{ github.repository_owner }}/haos-builder:cache-${{ steps.version.outputs.version_main }}
+          tags: ghcr.io/${{ steps.ghcr.outputs.owner_lc }}/haos-builder
+          cache-from: ghcr.io/${{ steps.ghcr.outputs.owner_lc }}/haos-builder:cache-${{ steps.version.outputs.version_main }}
+          cache-to: ghcr.io/${{ steps.ghcr.outputs.owner_lc }}/haos-builder:cache-${{ steps.version.outputs.version_main }}
           push: true
 
       - name: Generate self-signed certificate
