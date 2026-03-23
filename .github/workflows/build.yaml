@@ -2,6 +2,10 @@
 
 name: OS build
 
+permissions:
+  contents: read
+  packages: write
+  
 on:
   release:
     types: [published]
