@@ -11,6 +11,13 @@ image_json_name=$4
 dl_dir=$5
 dst_dir=$6
 
+# Map buildroot/supervisor arch names to OCI architecture names
+case "${arch}" in
+    aarch64) oci_arch="arm64" ;;
+    armv7)   oci_arch="arm" ;;
+    *)       oci_arch="${arch}" ;;
+esac
+
 retry() {
 	local retries="$1"
 	local cmd=$2
@@ -39,7 +46,7 @@ image_tag=$(jq -e -r --arg image_json_name "${image_json_name}" \
 	'.[$image_json_name]' < "${version_json}")
 full_image_name="${image_name}:${image_tag}"
 
-image_digest=$(retry 3 "skopeo inspect 'docker://${full_image_name}' | jq -r '.Digest'")
+image_digest=$(retry 3 "skopeo inspect --override-arch '${oci_arch}' 'docker://${full_image_name}' | jq -r '.Digest'")
 
 # Cleanup image name file name use
 image_file_name="${full_image_name//[:\/]/_}@${image_digest//[:\/]/_}"
