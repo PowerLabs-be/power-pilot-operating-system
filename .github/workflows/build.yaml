@@ -204,7 +204,12 @@ jobs:
           cache-from: ghcr.io/${{ steps.ghcr.outputs.owner_lc }}/haos-builder:cache-${{ steps.version.outputs.version_main }}
           cache-to: ghcr.io/${{ steps.ghcr.outputs.owner_lc }}/haos-builder:cache-${{ steps.version.outputs.version_main }}
           push: true
-
+          
+      - name: Debug RAUC secrets presence (no values)
+        run: |
+          test -n "${{ secrets.RAUC_CERTIFICATE }}" && echo "RAUC_CERTIFICATE present" || echo "RAUC_CERTIFICATE missing"
+          test -n "${{ secrets.RAUC_PRIVATE_KEY }}" && echo "RAUC_PRIVATE_KEY present" || echo "RAUC_PRIVATE_KEY missing"
+        
       - name: Generate self-signed certificate
         id: generate_signing_key
         env:
@@ -313,7 +318,13 @@ jobs:
           image: ${{ needs.prepare.outputs.build_container_image }}
           command: |
             bash -c 'echo "${{ needs.prepare.outputs.hassio_channel_option }}=y" >> /build/output/.config && make olddefconfig'
-
+      
+      - name: Debug signing files existence
+        run: |
+          ls -la
+          test -f cert.pem && echo "cert.pem exists" || (echo "cert.pem missing" && exit 1)
+          test -f key.pem  && echo "key.pem exists"  || (echo "key.pem missing" && exit 1)
+      
       - name: Build
         uses: "./.github/actions/haos-builder-command"
         with:
