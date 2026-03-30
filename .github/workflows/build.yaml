@@ -343,7 +343,14 @@ jobs:
           command: |
             bash -euc '
               command -v skopeo >/dev/null 2>&1 || { echo "ERROR: skopeo is not installed"; exit 1; }
+
+              # Force auth file + runtime dirs to writable locations
+              export XDG_RUNTIME_DIR=/tmp/xdg-runtime
+              export HOME=/tmp
+              mkdir -p "$XDG_RUNTIME_DIR" /tmp/.config/containers
+
               skopeo login ghcr.io \
+                --authfile /tmp/.config/containers/auth.json \
                 -u "${{ github.repository_owner }}" \
                 --password "${{ secrets.GITHUB_TOKEN }}"
             '
