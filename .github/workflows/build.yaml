@@ -359,6 +359,7 @@ jobs:
         uses: "./.github/actions/haos-builder-command"
         with:
           image: ${{ needs.prepare.outputs.build_container_image }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
           command: make
 
       - name: Check Linux config

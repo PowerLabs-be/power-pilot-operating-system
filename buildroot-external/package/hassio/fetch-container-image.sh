@@ -46,6 +46,11 @@ image_tag=$(jq -e -r --arg image_json_name "${image_json_name}" \
 	'.[$image_json_name]' < "${version_json}")
 full_image_name="${image_name}:${image_tag}"
 
+# Authenticate to GHCR using GITHUB_TOKEN if available (needed for private images)
+if [[ -n "${GITHUB_TOKEN:-}" ]] && [[ "${image_name}" == ghcr.io/* ]]; then
+	echo "${GITHUB_TOKEN}" | skopeo login ghcr.io -u "x-access-token" --password-stdin
+fi
+
 image_digest=$(retry 3 "skopeo inspect --override-arch '${oci_arch}' 'docker://${full_image_name}' | jq -r '.Digest'")
 
 # Cleanup image name file name use
