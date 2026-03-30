@@ -349,8 +349,10 @@ jobs:
       
               skopeo login ghcr.io \
                 -u "${{ github.repository_owner }}" \
-                --password "$GITHUB_TOKEN"
+                --password "${GHCR_TOKEN}"
             '
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build
         uses: "./.github/actions/haos-builder-command"
