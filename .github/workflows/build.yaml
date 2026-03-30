@@ -333,6 +333,24 @@ jobs:
           test -f cert.pem && echo "cert.pem exists" || (echo "cert.pem missing" && exit 1)
           test -f key.pem  && echo "key.pem exists"  || (echo "key.pem missing" && exit 1)
       
+      # This step is required for pulling private images from ghcr.io via skopeo
+      # inside the build container during the Buildroot build (e.g. the hassio package).
+      - name: Authenticate skopeo to GHCR inside build container
+        uses: "./.github/actions/haos-builder-command"
+        with:
+          image: ${{ needs.prepare.outputs.build_container_image }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          command: |
+            bash -c '
+              command -v skopeo >/dev/null 2>&1 || {
+                echo "ERROR: skopeo is not installed in the build container; cannot authenticate to ghcr.io for private image pulls"
+                exit 1
+              }
+              printf "%s" "$GITHUB_TOKEN" | skopeo login ghcr.io \
+                -u "${{ github.repository_owner }}" \
+                --password-stdin
+            '
+
       - name: Build
         uses: "./.github/actions/haos-builder-command"
         with:
