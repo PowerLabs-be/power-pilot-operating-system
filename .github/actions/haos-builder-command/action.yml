@@ -6,17 +6,30 @@ inputs:
   command:
     description: "Command to run in the container"
     required: true
+  github-token:
+    description: "GitHub token to pass into the container as GITHUB_TOKEN (for private registry access)"
+    required: false
+    default: ""
 runs:
   using: 'composite'
   steps:
   - name: "Run command in HAOS build container"
     shell: bash
+    env:
+      INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
     run: |
+      token_args=()
+      if [[ -n "${INPUT_GITHUB_TOKEN}" ]]; then
+        GITHUB_TOKEN="${INPUT_GITHUB_TOKEN}"
+        export GITHUB_TOKEN
+        token_args=("-e" "GITHUB_TOKEN")
+      fi
       docker run --rm --privileged \
         -e BUILDER_UID="$(id -u)" \
         -e BUILDER_GID="$(id -g)" \
         -v "${GITHUB_WORKSPACE}:/build" \
         -v "/mnt/cache:/cache" \
         -v "/mnt/output:/build/output" \
+        "${token_args[@]}" \
         ${{ inputs.image }} \
         ${{ inputs.command }}
