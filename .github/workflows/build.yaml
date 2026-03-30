@@ -341,14 +341,15 @@ jobs:
           image: ${{ needs.prepare.outputs.build_container_image }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           command: |
-            bash -c '
+            bash -euc '
               command -v skopeo >/dev/null 2>&1 || {
                 echo "ERROR: skopeo is not installed in the build container; cannot authenticate to ghcr.io for private image pulls"
                 exit 1
               }
-              printf "%s" "$GITHUB_TOKEN" | skopeo login ghcr.io \
+      
+              skopeo login ghcr.io \
                 -u "${{ github.repository_owner }}" \
-                --password-stdin
+                --password "$GITHUB_TOKEN"
             '
 
       - name: Build
