@@ -342,17 +342,11 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           command: |
             bash -euc '
-              command -v skopeo >/dev/null 2>&1 || {
-                echo "ERROR: skopeo is not installed in the build container; cannot authenticate to ghcr.io for private image pulls"
-                exit 1
-              }
-      
+              command -v skopeo >/dev/null 2>&1 || { echo "ERROR: skopeo is not installed"; exit 1; }
               skopeo login ghcr.io \
                 -u "${{ github.repository_owner }}" \
-                --password "${GHCR_TOKEN}"
+                --password "${{ secrets.GITHUB_TOKEN }}"
             '
-        env:
-          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build
         uses: "./.github/actions/haos-builder-command"
