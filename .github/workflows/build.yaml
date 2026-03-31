@@ -349,10 +349,10 @@ jobs:
               export HOME=/tmp
               mkdir -p "$XDG_RUNTIME_DIR" /tmp/.config/containers
 
-              skopeo login ghcr.io \
+              echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io \
                 --authfile /tmp/.config/containers/auth.json \
                 -u "${{ github.repository_owner }}" \
-                --password "${{ secrets.GITHUB_TOKEN }}"
+                --password-stdin
             '
 
       - name: Build

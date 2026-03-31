@@ -46,12 +46,34 @@ image_tag=$(jq -e -r --arg image_json_name "${image_json_name}" \
 	'.[$image_json_name]' < "${version_json}")
 full_image_name="${image_name}:${image_tag}"
 
+# authfile is populated below when GHCR login is performed; passed to all skopeo calls so
+# that inspect/copy also use the stored credentials (not just the login step).
+authfile=""
+
 # Authenticate to GHCR using GITHUB_TOKEN if available (needed for private images)
 if [[ -n "${GITHUB_TOKEN:-}" ]] && [[ "${image_name}" == ghcr.io/* ]]; then
-	echo "${GITHUB_TOKEN}" | skopeo login ghcr.io -u "x-access-token" --password-stdin
+	# Use a deterministic, writable authfile so skopeo inspect/copy will pick up credentials
+	# reliably in Buildroot/container contexts where the default runtime dir may not be writable.
+	export HOME="${HOME:-/tmp}"
+	mkdir -p "${HOME}/.config/containers"
+	authfile="${HOME}/.config/containers/auth.json"
+
+	# GHCR requires a real GitHub username (not "x-access-token").
+	# Prefer GHCR_USERNAME if explicitly provided, otherwise fall back to GITHUB_ACTOR.
+	gh_user="${GHCR_USERNAME:-${GITHUB_ACTOR:-}}"
+	if [[ -z "${gh_user}" ]]; then
+		echo "ERROR: GHCR username not set – set GHCR_USERNAME or GITHUB_ACTOR" >&2
+		exit 1
+	fi
+	echo "${GITHUB_TOKEN}" | skopeo login ghcr.io --authfile "${authfile}" -u "${gh_user}" --password-stdin
 fi
 
-image_digest=$(retry 3 "skopeo inspect --override-arch '${oci_arch}' 'docker://${full_image_name}' | jq -r '.Digest'")
+authfile_arg=""
+if [[ -n "${authfile}" ]]; then
+	authfile_arg="--authfile ${authfile}"
+fi
+
+image_digest=$(retry 3 "skopeo inspect ${authfile_arg} --override-arch '${oci_arch}' 'docker://${full_image_name}' | jq -r '.Digest'")
 
 # Cleanup image name file name use
 image_file_name="${full_image_name//[:\/]/_}@${image_digest//[:\/]/_}"
@@ -64,7 +86,7 @@ dst_image_file_path="${dst_dir}/${image_file_name}.tar"
 	if [ ! -f "${image_file_path}" ]
 	then
 		echo "Fetching image: ${full_image_name} (digest ${image_digest})"
-		retry 3 "skopeo copy 'docker://${image_name}@${image_digest}' 'oci-archive:${image_file_path}:${full_image_name}'"
+		retry 3 "skopeo copy ${authfile_arg} 'docker://${image_name}@${image_digest}' 'oci-archive:${image_file_path}:${full_image_name}'"
 	else
 		echo "Skipping download of existing image: ${full_image_name} (digest ${image_digest})"
 	fi
