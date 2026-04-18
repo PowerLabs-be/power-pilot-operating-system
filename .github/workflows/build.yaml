@@ -313,7 +313,7 @@ jobs:
       - name: Authenticate to GitHub Container Registry (enforced)
         shell: bash
         run: |
-          GH_USER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          GH_USER="${GITHUB_REPOSITORY_OWNER,,}"
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
             -u "$GH_USER" \
             --password-stdin
@@ -351,10 +351,9 @@ jobs:
               export HOME=/tmp
               mkdir -p "$XDG_RUNTIME_DIR" /tmp/.config/containers
 
-              # use lowercase owner for GHCR
-              GH_USER="${{ steps.ghcr.outputs.owner_lc }}"
+              GH_USER="${GITHUB_REPOSITORY_OWNER,,}"
 
-              echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io \
+              echo "${GITHUB_TOKEN}" | skopeo login ghcr.io \
                 --authfile /tmp/.config/containers/auth.json \
                 -u "$GH_USER" \
                 --password-stdin
@@ -367,7 +366,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           command: |
             bash -euc '
-              export GHCR_USERNAME="${{ steps.ghcr.outputs.owner_lc }}"
+              export GHCR_USERNAME="${GITHUB_REPOSITORY_OWNER,,}"
               export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
               make
             '
