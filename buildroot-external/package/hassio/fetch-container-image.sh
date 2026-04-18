@@ -11,7 +11,6 @@ image_json_name=$4
 dl_dir=$5
 dst_dir=$6
 
-
 retry() {
 	local retries="$1"
 	local cmd=$2
