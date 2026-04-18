@@ -311,7 +311,12 @@ jobs:
           key: haos-cc-${{ matrix.board.id }}
 
       - name: Authenticate to GitHub Container Registry (enforced)
-        run: echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.repository_owner }} --password-stdin
+        shell: bash
+        run: |
+          GH_USER="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io \
+            -u "$GH_USER" \
+            --password-stdin
 
       - name: Generate build config
         uses: "./.github/actions/haos-builder-command"
@@ -342,16 +347,16 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           command: |
             bash -euc '
-              command -v skopeo >/dev/null 2>&1 || { echo "ERROR: skopeo is not installed"; exit 1; }
-
-              # Force auth file + runtime dirs to writable locations
               export XDG_RUNTIME_DIR=/tmp/xdg-runtime
               export HOME=/tmp
               mkdir -p "$XDG_RUNTIME_DIR" /tmp/.config/containers
 
+              # use lowercase owner for GHCR
+              GH_USER="${{ steps.ghcr.outputs.owner_lc }}"
+
               echo "${{ secrets.GITHUB_TOKEN }}" | skopeo login ghcr.io \
                 --authfile /tmp/.config/containers/auth.json \
-                -u "${{ github.repository_owner }}" \
+                -u "$GH_USER" \
                 --password-stdin
             '
 
@@ -360,7 +365,12 @@ jobs:
         with:
           image: ${{ needs.prepare.outputs.build_container_image }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          command: make
+          command: |
+            bash -euc '
+              export GHCR_USERNAME="${{ steps.ghcr.outputs.owner_lc }}"
+              export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+              make
+            '
 
       - name: Check Linux config
         uses: "./.github/actions/haos-builder-command"
