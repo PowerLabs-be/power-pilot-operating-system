@@ -372,6 +372,26 @@ jobs:
               GHCR_USERNAME="${{ github.repository_owner }}"
               export GHCR_USERNAME="${GHCR_USERNAME,,}"
               export GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+              
+              MAX_RETRIES=5
+              RETRY_DELAY=15
+              for i in $(seq 1 $MAX_RETRIES); do
+                echo "Downloading sources (Attempt $i of $MAX_RETRIES)..."
+                if make source; then
+                  echo "Downloads succeeded."
+                  break
+                fi
+                if [ $i -lt $MAX_RETRIES ]; then
+                  echo "Download failed. Retrying in ${RETRY_DELAY} seconds..."
+                  sleep $RETRY_DELAY
+                  RETRY_DELAY=$((RETRY_DELAY * 2))
+                else
+                  echo "Downloads failed after $MAX_RETRIES attempts."
+                  exit 1
+                fi
+              done
+              
+              echo "Starting build..."
               make
             '
 
