@@ -542,7 +542,7 @@ jobs:
     name: Update artifacts index
     if: ${{ github.event_name != 'release' && needs.prepare.outputs.publish_build == 'true' }}
     needs: [ build, prepare ]
-    uses: home-assistant/operating-system/.github/workflows/artifacts-index.yaml@dev
+    uses: PowerLabs-be/power-pilot-operating-system/.github/workflows/artifacts-index.yaml@dev
     with:
       version: ${{ needs.prepare.outputs.version_full }}
     secrets:
@@ -555,7 +555,7 @@ jobs:
 
   bump_version:
     name: Bump ${{ needs.prepare.outputs.channel }} channel version
-    if: ${{ github.repository == 'home-assistant/operating-system' && needs.prepare.outputs.publish_build == 'true' && (needs.prepare.outputs.channel != 'dev' || github.ref == 'refs/heads/dev') }}
+    if: ${{ github.repository == 'PowerLabs-be/power-pilot-operating-system' && needs.prepare.outputs.publish_build == 'true' && (needs.prepare.outputs.channel != 'dev' || github.ref == 'refs/heads/dev') }}
     environment: ${{ needs.prepare.outputs.channel }}
     needs: [ build, prepare ]
     runs-on: ubuntu-22.04
@@ -573,24 +573,24 @@ jobs:
         email: ${{ secrets.GIT_EMAIL }}
         token: ${{ secrets.GIT_TOKEN }}
 
-    - name: Bump Home Assistant OS ${{ needs.prepare.outputs.channel }} channel version
+    - name: Bump Power Pilot OS ${{ needs.prepare.outputs.channel }} channel version
       uses: PowerLabs-be/power-pilot-actions/helpers/version-push@master
       with:
-        key: "hassos[]"
-        key-description: "Home Assistant OS"
+        key: "ppos[]"
+        key-description: "Power Pilot OS"
         version: ${{ needs.prepare.outputs.version_full }}
         channel: ${{ needs.prepare.outputs.channel }}
 
-    - name: Bump Home Assistant OS beta channel version on stable release
+    - name: Bump Power Pilot OS beta channel version on stable release
       if: ${{ needs.prepare.outputs.channel == 'stable' }}
       uses: PowerLabs-be/power-pilot-actions/helpers/version-push@master
       with:
-        key: "hassos[]"
-        key-description: "Home Assistant OS"
+        key: "ppos[]"
+        key-description: "Power Pilot OS"
         version: ${{ needs.prepare.outputs.version_full }}
         channel: beta
 
-    - name: Bump stable Home Assistant version for RPi Imager
+    - name: Bump stable Power Pilot version for RPi Imager
       if: ${{ github.event_name == 'release' && needs.prepare.outputs.channel == 'stable' }}
       uses: "./.github/actions/bump-rpi-imager-version"
       with:
