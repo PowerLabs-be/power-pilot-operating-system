@@ -24,7 +24,7 @@ tools:
   qemu-x86_64: /usr/bin/qemu-system-x86_64
 
 images:
-  disk-image: ./haos.qcow2
+  disk-image: ./ppos.qcow2
   bios: /usr/share/ovmf/OVMF.fd
 
 
