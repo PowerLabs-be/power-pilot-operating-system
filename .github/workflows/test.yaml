@@ -1,12 +1,12 @@
-name: Test HAOS image
-run-name: "Test HAOS ${{ inputs.version || format('(OS build #{0})', github.event.workflow_run.run_number) }}"
+name: Test PPOS image
+run-name: "Test PPOS ${{ inputs.version || format('(OS build #{0})', github.event.workflow_run.run_number) }}"
 
 on:
   # Manual test of specified version
   workflow_dispatch:
     inputs:
       version:
-        description: Version of HAOS to test
+        description: Version of PPOS to test
         required: true
         type: string
 
@@ -20,7 +20,7 @@ on:
         type: boolean
         default: true
       version:
-        description: Version of HAOS to test (as used in the name of the qcow2 image artifact)
+        description: Version of PPOS to test (as used in the name of the qcow2 image artifact)
         required: true
         type: string
 
@@ -53,7 +53,7 @@ jobs:
       - name: Download HAOS image
         if: ${{ !inputs.use-artifact }}
         run: |
-          curl -sfL -o haos.qcow2.xz  https://os-artifacts.home-assistant.io/${{github.event.inputs.version}}/ppos_ova-${{github.event.inputs.version}}.qcow2.xz
+          curl -sfL -o ppos.qcow2.xz  https://github.com/PowerLabs-be/power-pilot-operating-system/releases/download/${{github.event.inputs.version}}/ppos_ova-${{github.event.inputs.version}}.qcow2.xz
 
       - name: Get OS image artifact
         if: ${{ inputs.use-artifact }}
@@ -63,8 +63,8 @@ jobs:
 
       - name: Extract OS image
         run: |
-          xz -dc haos*.qcow2.xz > tests/haos.qcow2
-          rm haos*.qcow2.xz
+          xz -dc ppos*.qcow2.xz > tests/ppos.qcow2
+          rm ppos*.qcow2.xz
 
       - name: Enable KVM group perms
         run: |
