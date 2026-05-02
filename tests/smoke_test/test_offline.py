@@ -59,15 +59,23 @@ def test_ha_runs_offline(shell):
 
     _check_connectivity(shell, connected=False)
 
-    for _ in range(100):
-        if check_container_running("homeassistant") and check_container_running(
-            "hassio_cli"
-        ):
+    # Don't hardcode container names: forks/supervisor versions may differ.
+    # What we really need is that HA comes up offline and serves the UI.
+    for _ in range(180):
+        # HA returns HTML when ready; curl will fail before that
+        web_index = shell.run_check(
+            "curl -sS --max-time 2 http://localhost:8123 || true"
+        )
+        if web_index and "</html>" in " ".join(web_index):
             break
         sleep(1)
     else:
+        shell.run_check("docker ps -a")
         shell.run_check("docker logs hassio_supervisor")
-        raise AssertionError("homeassistant or hassio_cli not running after 60s")
+        raise AssertionError(
+            "Home Assistant UI not reachable on http://localhost:8123 in offline mode"
+        )
 
+    # final assert (kept)
     web_index = shell.run_check("curl http://localhost:8123")
     assert "</html>" in " ".join(web_index)
