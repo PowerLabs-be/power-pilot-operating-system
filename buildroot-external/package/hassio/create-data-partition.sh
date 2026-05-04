@@ -21,7 +21,8 @@ mkfs.ext4 -L "hassos-data" -E lazy_itable_init=0,lazy_journal_init=0 "${data_img
 mkdir -p "${data_dir}"
 sudo mount -o loop,discard "${data_img}" "${data_dir}"
 
-trap 'docker rm -f ${container} > /dev/null; sudo umount ${data_dir} || true' ERR EXIT
+container=""
+trap '[[ -n "${container}" ]] && docker rm -f "${container}" > /dev/null 2>&1 || true; sudo umount "${data_dir}" || true' ERR EXIT
 
 # Use official Docker in Docker images
 # We use the same version as Buildroot is using to ensure best compatibility
@@ -32,6 +33,11 @@ container=$(docker run --privileged -e DOCKER_TLS_CERTDIR="" \
 
 docker exec "${container}" sh /build/dind-import-containers.sh
 
+# Capture image URLs before the heredoc so ${images} expands correctly in the outer shell.
+# An unquoted heredoc (<<EOF) performs $-expansion at construction time, so variables must
+# be set in the outer shell before the heredoc is built.
+images=$(jq -c '.images // {}' "${version_json}")
+
 sudo bash -ex <<EOF
 # Indicator for docker-prepare.service to use the containerd snapshotter
 touch "${data_dir}/.docker-use-containerd-snapshotter"
@@ -40,7 +46,10 @@ touch "${data_dir}/.docker-use-containerd-snapshotter"
 mkdir -p "${data_dir}/supervisor/apparmor"
 curl -fsL -o "${data_dir}/supervisor/apparmor/power-pilot-supervisor" "${APPARMOR_URL}"
 
-# Persist build-time updater channel and image URLs
-images=$(jq -c '.images' "${version_json}")
-jq -n --arg channel "${channel}" --argjson images "${images}" '{"channel": $channel, "image": $images}' > "${data_dir}/supervisor/updater.json"
+# Persist build-time updater channel and image URLs.
+# \$channel and \$images are jq variables; backslash-escape prevents the outer shell from
+# expanding them. In an unquoted heredoc (<<EOF) all $-expansions happen at construction
+# time; single quotes offer no protection here, so the backslash is required.
+jq -n --arg channel "${channel}" --argjson images "${images}" \
+  '{"channel": \$channel, "image": \$images}' > "${data_dir}/supervisor/updater.json"
 EOF
