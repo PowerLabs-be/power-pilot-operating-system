@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
 
+set -o pipefail
+
 build_dir=$1
 dst_dir=$2
 channel=$3
@@ -36,7 +38,20 @@ docker exec "${container}" sh /build/dind-import-containers.sh
 # Capture image URLs before the heredoc so ${images} expands correctly in the outer shell.
 # An unquoted heredoc (<<EOF) performs $-expansion at construction time, so variables must
 # be set in the outer shell before the heredoc is built.
-images=$(jq -c '.images // {}' "${version_json}")
+#
+# Be defensive: this script is used in CI, and a malformed or missing version.json should
+# not lead to confusing "invalid JSON text passed to --argjson" errors.
+if [[ -z "${version_json}" || ! -f "${version_json}" ]]; then
+    echo "ERROR: version_json file not found: '${version_json}'" >&2
+    exit 2
+fi
+
+# Ensure .images is always valid JSON (object), even if the file is missing the key.
+if ! images=$(jq -ce '.images // {}' "${version_json}"); then
+    echo "ERROR: Failed to parse '${version_json}' (expected JSON). Contents:" >&2
+    sed -n '1,200p' "${version_json}" >&2 || true
+    exit 2
+fi
 
 sudo bash -ex <<EOF
 # Indicator for docker-prepare.service to use the containerd snapshotter
