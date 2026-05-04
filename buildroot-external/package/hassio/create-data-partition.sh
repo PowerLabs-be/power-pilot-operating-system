@@ -53,7 +53,7 @@ if ! images=$(jq -ce '.images // {}' "${version_json}"); then
     exit 2
 fi
 
-sudo bash -ex <<EOF
+sudo images="$images" channel="$channel" APPARMOR_URL="${APPARMOR_URL}" data_dir="${data_dir}" bash -ex <<'EOF'
 # Indicator for docker-prepare.service to use the containerd snapshotter
 touch "${data_dir}/.docker-use-containerd-snapshotter"
 
@@ -65,6 +65,6 @@ curl -fsL -o "${data_dir}/supervisor/apparmor/power-pilot-supervisor" "${APPARMO
 # \$channel and \$images are jq variables; backslash-escape prevents the outer shell from
 # expanding them. In an unquoted heredoc (<<EOF) all $-expansions happen at construction
 # time; single quotes offer no protection here, so the backslash is required.
-jq -n --arg channel "${channel}" --argjson images "${images}" \
-  '{"channel": \$channel, "image": \$images}' > "${data_dir}/supervisor/updater.json"
+jq -n --arg channel "$channel" --argjson images "$images" \
+  '{"channel": $channel, "image": $images}' > "${data_dir}/supervisor/updater.json"
 EOF
