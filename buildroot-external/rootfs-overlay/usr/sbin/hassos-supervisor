@@ -96,7 +96,7 @@ if [ -z "${SUPERVISOR_CONTAINER_ID}" ]; then
     # shellcheck disable=SC2086
     docker container create \
         --name hassio_supervisor \
-        --privileged --security-opt apparmor="hassio-supervisor" \
+        --privileged --security-opt apparmor="power-pilot-supervisor" \
         --oom-score-adj=-300 \
         --cidfile "${SUPERVISOR_CIDFILE}" \
         --mount type=bind,src="${SUPERVISOR_CIDFILE}",dst=/run/cid,readonly \

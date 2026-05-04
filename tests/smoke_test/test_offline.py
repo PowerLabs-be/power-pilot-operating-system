@@ -46,6 +46,10 @@ def test_ha_runs_offline(shell):
             nm_conns = shell.run_check("nmcli con show")
             if "Supervisor" in " ".join(nm_conns):
                 break
+        print(
+            "Looping... container running?",
+            check_container_running("hassio_supervisor"),
+        )
         sleep(1)
 
     # To simulate situation where HAOS is not connected to internet, we need to add
@@ -61,17 +65,21 @@ def test_ha_runs_offline(shell):
 
     # Don't hardcode container names: forks/supervisor versions may differ.
     # What we really need is that HA comes up offline and serves the UI.
-    for _ in range(180):
+    for _ in range(120):
         # HA returns HTML when ready; curl will fail before that
         web_index = shell.run_check(
             "curl -sS --max-time 2 http://localhost:8123 || true"
         )
         if web_index and "</html>" in " ".join(web_index):
             break
+        print(
+            "Looping... container running:",
+            check_container_running("hassio_supervisor"),
+        )
         sleep(1)
     else:
         shell.run_check("docker ps -a")
-        shell.run_check("docker logs hassio_supervisor")
+        print("\n".join(shell.run_check("docker logs hassio_supervisor 2>&1")))
         raise AssertionError(
             "Home Assistant UI not reachable on http://localhost:8123 in offline mode"
         )

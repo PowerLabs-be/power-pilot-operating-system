@@ -47,6 +47,7 @@ def test_init(shell, shell_json):
         sleep(5)
 
 
+@pytest.mark.skip(reason="No releases available yet on PowerLabs-be/power-pilot-operating-system")
 @pytest.mark.dependency(depends=["test_init"])
 @pytest.mark.timeout(600)  # TODO: reduce to 300 after 17.0 release
 def test_os_update(shell, shell_json, target):

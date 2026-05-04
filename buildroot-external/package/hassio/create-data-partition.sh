@@ -5,6 +5,7 @@ build_dir=$1
 dst_dir=$2
 channel=$3
 docker_version=$4
+version_json=$5
 
 data_img="${dst_dir}/data.ext4"
 data_dir="${build_dir}/data"
@@ -37,8 +38,9 @@ touch "${data_dir}/.docker-use-containerd-snapshotter"
 
 # Setup AppArmor
 mkdir -p "${data_dir}/supervisor/apparmor"
-curl -fsL -o "${data_dir}/supervisor/apparmor/hassio-supervisor" "${APPARMOR_URL}"
+curl -fsL -o "${data_dir}/supervisor/apparmor/power-pilot-supervisor" "${APPARMOR_URL}"
 
-# Persist build-time updater channel
-jq -n --arg channel "${channel}" '{"channel": \$channel}' > "${data_dir}/supervisor/updater.json"
+# Persist build-time updater channel and image URLs
+images=$(jq -c '.images' "${version_json}")
+jq -n --arg channel "${channel}" --argjson images "${images}" '{"channel": $channel, "image": $images}' > "${data_dir}/supervisor/updater.json"
 EOF
