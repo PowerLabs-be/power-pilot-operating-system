@@ -5,6 +5,7 @@ build_dir=$1
 dst_dir=$2
 channel=$3
 docker_version=$4
+version_json=$5
 
 data_img="${dst_dir}/data.ext4"
 data_dir="${build_dir}/data"
@@ -31,14 +32,23 @@ container=$(docker run --privileged -e DOCKER_TLS_CERTDIR="" \
 
 docker exec "${container}" sh /build/dind-import-containers.sh
 
+# Capture image URLs before the heredoc so ${images} expands correctly in the outer shell.
+# An unquoted heredoc (<<EOF) performs $-expansion at construction time, so variables must
+# be set in the outer shell before the heredoc is built.
+images=$(jq -c '.images // {}' "${version_json}")
+
 sudo bash -ex <<EOF
 # Indicator for docker-prepare.service to use the containerd snapshotter
 touch "${data_dir}/.docker-use-containerd-snapshotter"
 
 # Setup AppArmor
 mkdir -p "${data_dir}/supervisor/apparmor"
-curl -fsL -o "${data_dir}/supervisor/apparmor/hassio-supervisor" "${APPARMOR_URL}"
+curl -fsL -o "${data_dir}/supervisor/apparmor/power-pilot-supervisor" "${APPARMOR_URL}"
 
-# Persist build-time updater channel
-jq -n --arg channel "${channel}" '{"channel": \$channel}' > "${data_dir}/supervisor/updater.json"
+# Persist build-time updater channel and image URLs.
+# \$channel and \$images are jq variables; backslash-escape prevents the outer shell from
+# expanding them. In an unquoted heredoc (<<EOF) all $-expansions happen at construction
+# time; single quotes offer no protection here, so the backslash is required.
+jq -n --arg channel "${channel}" --argjson images "${images}" \
+  '{"channel": \$channel, "image": \$images}' > "${data_dir}/supervisor/updater.json"
 EOF
