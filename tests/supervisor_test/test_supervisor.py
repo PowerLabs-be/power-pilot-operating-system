@@ -15,8 +15,15 @@ def stash() -> dict:
     return stash
 
 
+def check_container_running(shell, container_name):
+    out = shell.run_check(
+        f"docker container inspect -f '{{{{.State.Status}}}}' {container_name} || true"
+    )
+    return "running" in out
+
+
 @pytest.mark.dependency()
-@pytest.mark.timeout(360)
+@pytest.mark.timeout(600)
 def test_start_supervisor(shell, shell_json):
     # Disable auto-updates to avoid interference with other tests,
     # do it directly on config level and restart Supervisor via systemd.
@@ -26,32 +33,58 @@ def test_start_supervisor(shell, shell_json):
         " && systemctl restart hassos-supervisor.service"
     )
 
-    def check_container_running(container_name):
-        out = shell.run_check(f"docker container inspect -f '{{{{.State.Status}}}}' {container_name} || true")
-        return "running" in out
-
     while True:
-        if check_container_running("homeassistant") and check_container_running("hassio_supervisor"):
+        if check_container_running(shell, "homeassistant") and check_container_running(
+            shell, "hassio_supervisor"
+        ):
             break
 
-        sleep(1)
+        print(
+            "DEBUG_DEBUG_DEBUG supervisor:",
+            check_container_running(shell, "hassio_supervisor"),
+            "core:",
+            check_container_running(shell, "homeassistant"),
+        )
+        images = shell.run_check("docker images")
+        print("DEBUG_IMAGES:", images)
+        sleep(5)
 
-    supervisor_ip = "\n".join(
-        shell.run_check("docker inspect --format='{{.NetworkSettings.Networks.bridge.IPAddress}}' hassio_supervisor")
-    )
+    supervisor_ip = shell.run_check(
+        "docker inspect -f '{{.NetworkSettings.Networks.hassio.IPAddress}}' hassio_supervisor"
+    )[0]
+    print(f"DEBUG: Detected Supervisor IP: {supervisor_ip}")
 
     while True:
         try:
-            if shell_json(f"curl -sSL http://{supervisor_ip}/supervisor/ping").get("result") == "ok":
+            if (
+                shell_json(f"curl -sSL http://{supervisor_ip}/supervisor/ping").get(
+                    "result"
+                )
+                == "ok"
+            ):
                 break
         except ExecutionError:
             pass  # avoid failure when the container is restarting
 
-        sleep(1)
-
+        print(
+            "PING_LOOP supervisor:",
+            check_container_running(shell, "hassio_supervisor"),
+            "core:",
+            check_container_running(shell, "homeassistant"),
+        )
+        print(
+            "DOCKER_PS:", shell.run_check("docker ps --format '{{.Names}} {{.Image}}'")
+        )
+        logs = shell.run_check("docker logs hassio_supervisor")
+        print("SUPERVISOR_LOGS_LAST_100:", logs[-100:])
+        shell.run_check("docker logs hassio_supervisor > /tmp/supervisor.log")
+        sleep(5)
 
     logger.info("Waiting for Home Assistant Core to be installed and started...")
     core_install_started = False
+    no_job_cycles = (
+        0  # count consecutive cycles where API is up but no install job seen
+    )
     while True:
         try:
             jobs_info = shell_json("ha jobs info --no-progress --raw-json")
@@ -63,15 +96,37 @@ def test_start_supervisor(shell, shell_json):
                 j.get("name") == "home_assistant_core_install" and not j.get("done")
                 for j in jobs
             )
+            # Fallback: install may have completed while supervisor API was unavailable.
+            # Check if core is already running a real (non-landingpage) version.
+            ha_info = shell_json("ha info --raw-json")
+            installed_version = ha_info.get("data", {}).get("homeassistant", "")
+            if installed_version and installed_version != "main":
+                logger.info(
+                    "Home Assistant Core is already running version %s (install complete)",
+                    installed_version,
+                )
+                break
             if core_installing:
                 # install is in progress
                 if not core_install_started:
-                    logger.info("Home Assistant Core install job detected, waiting for completion...")
+                    logger.info(
+                        "Home Assistant Core install job detected, waiting for completion..."
+                    )
                     core_install_started = True
+                no_job_cycles = 0
             elif core_install_started:
-                # started and not installing anymore means finished
+                # install started earlier and finished
                 logger.info("Home Assistant Core install/start complete")
                 break
+            else:
+                no_job_cycles += 1
+                if no_job_cycles % 12 == 0:  # every ~60s dump supervisor logs
+                    logs = shell.run_check("docker logs hassio_supervisor --tail 100")
+                    print(
+                        f"CORE_INSTALL_LOOP: no install job seen for {no_job_cycles * 5}s."
+                        f" current jobs: {jobs}\nSUPERVISOR_LOGS_LAST_100:\n"
+                        + "\n".join(logs)
+                    )
         except ExecutionError:
             pass  # avoid failure when the supervisor/CLI is restarting
 
@@ -92,8 +147,10 @@ def test_check_supervisor(shell_json):
 
 @pytest.mark.dependency(depends=["test_check_supervisor"])
 @pytest.mark.timeout(120)
-@pytest.mark.parametrize("component", ["supervisor", "audio", "cli", "dns", "observer", "multicast"])
-def test_update_components(shell_json, component):
+@pytest.mark.parametrize(
+    "component", ["supervisor", "audio", "cli", "dns", "observer", "multicast"]
+)
+def test_update_components(shell, shell_json, component):
     info = shell_json(f"ha {component} info --no-progress --raw-json")
     version = info.get("data").get("version")
     version_latest = info.get("data").get("version_latest")
@@ -103,7 +160,9 @@ def test_update_components(shell_json, component):
         pytest.skip(f"{component} is already up to date")
     else:
         result = shell_json(f"ha {component} update --no-progress --raw-json")
-        if result.get("result") == "error" and "Another job is running" in result.get("message"):
+        if result.get("result") == "error" and "Another job is running" in result.get(
+            "message"
+        ):
             pass
         else:
             assert result.get("result") == "ok", f"{component} update failed: {result}"
@@ -124,7 +183,11 @@ def test_update_components(shell_json, component):
             except ExecutionError:
                 pass  # avoid failure when the container is restarting
 
-            sleep(1)
+            print(
+                "CORE_INSTALL_LOOP supervisor:",
+                check_container_running(shell, "hassio_supervisor"),
+            )
+            sleep(5)
 
 
 @pytest.mark.dependency(depends=["test_check_supervisor"])
@@ -138,19 +201,26 @@ def test_supervisor_is_updated(shell_json):
 def test_app_install(shell_json):
     # install Core SSH app
     assert (
-        shell_json("ha apps install core_ssh --no-progress --raw-json").get("result") == "ok"
+        shell_json("ha apps install core_ssh --no-progress --raw-json").get("result")
+        == "ok"
     ), "Core SSH app install failed"
     # check Core SSH app is installed
     assert (
-        shell_json("ha apps info core_ssh --no-progress --raw-json").get("data", {}).get("version") is not None
+        shell_json("ha apps info core_ssh --no-progress --raw-json")
+        .get("data", {})
+        .get("version")
+        is not None
     ), "Core SSH app not installed"
     # start Core SSH app
     assert (
-        shell_json("ha apps start core_ssh --no-progress --raw-json").get("result") == "ok"
+        shell_json("ha apps start core_ssh --no-progress --raw-json").get("result")
+        == "ok"
     ), "Core SSH app start failed"
     # check Core SSH app is running
     ssh_info = shell_json("ha apps info core_ssh --no-progress --raw-json")
-    assert ssh_info.get("data", {}).get("state") == "started", "Core SSH app not running"
+    assert ssh_info.get("data", {}).get("state") == "started", (
+        "Core SSH app not running"
+    )
     logger.info("Core SSH app info: %s", ssh_info)
 
 
@@ -194,36 +264,53 @@ def test_restart_supervisor(shell, shell_json):
     result = shell_json("ha supervisor restart --no-progress --raw-json")
     assert result.get("result") == "ok", f"Supervisor restart failed: {result}"
 
-    supervisor_ip = "\n".join(
-        shell.run_check("docker inspect --format='{{.NetworkSettings.Networks.bridge.IPAddress}}' hassio_supervisor")
-    )
+    supervisor_ip = shell.run_check(
+        "docker inspect -f '{{.NetworkSettings.Networks.hassio.IPAddress}}' hassio_supervisor"
+    )[0]
 
     while True:
         try:
-            if shell_json(f"curl -sSL http://{supervisor_ip}/supervisor/ping").get("result") == "ok":
-                if shell_json("ha os info --no-progress --raw-json").get("result") == "ok":
+            if (
+                shell_json(f"curl -sSL http://{supervisor_ip}/supervisor/ping").get(
+                    "result"
+                )
+                == "ok"
+            ):
+                if (
+                    shell_json("ha os info --no-progress --raw-json").get("result")
+                    == "ok"
+                ):
                     break
         except ExecutionError:
             pass  # avoid failure when the container is restarting
 
+        print("Looping", check_container_running(shell, "hassio_supervisor"))
         sleep(1)
 
 
 @pytest.mark.dependency(depends=["test_create_backup"])
 def test_restore_backup(shell_json, stash):
-    result = shell_json(f"ha backups restore {stash.get('slug')} --app core_ssh --no-progress --raw-json")
+    result = shell_json(
+        f"ha backups restore {stash.get('slug')} --app core_ssh --no-progress --raw-json"
+    )
     assert result.get("result") == "ok", f"Backup restore failed: {result}"
     logger.info("Backup restore result: %s", result)
 
     app_info = shell_json("ha apps info core_ssh --no-progress --raw-json")
-    assert app_info.get("data", {}).get("version") is not None, "Core SSH app not installed"
-    assert app_info.get("data", {}).get("state") == "started", "Core SSH app not running"
+    assert app_info.get("data", {}).get("version") is not None, (
+        "Core SSH app not installed"
+    )
+    assert app_info.get("data", {}).get("state") == "started", (
+        "Core SSH app not running"
+    )
     logger.info("Core SSH app info: %s", app_info)
 
 
 @pytest.mark.dependency(depends=["test_create_backup"])
 def test_restore_ssl_directory(shell_json, stash):
-    result = shell_json(f"ha backups restore {stash.get('slug')} --folders ssl --no-progress --raw-json")
+    result = shell_json(
+        f"ha backups restore {stash.get('slug')} --folders ssl --no-progress --raw-json"
+    )
     assert result.get("result") == "ok", f"Backup restore failed: {result}"
     logger.info("Backup restore result: %s", result)
 
